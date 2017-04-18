@@ -1,3 +1,4 @@
+#include "lib_record.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -8,39 +9,43 @@
 #include <unistd.h>
 #include <signal.h>
 
+#define MAX_LINE_LEN 12000
+
 #define INLINE  static __inline
+#ifdef _DEBUG
 #define PRINT   printf
+#else
+#define PRINT(...)
+#endif
 
-#define MAX_RECORD  100
-#define MAX_LINE_LEN 4000
-
-typedef struct
-{
-    char *record[MAX_RECORD];
-    int head;
-    int tail;
-    int cnt;
-}RECORD_QUEUE_S;
-
-static char g_result[MAX_LINE_LEN] = "NA";
+static char g_result[2][MAX_LINE_LEN] = {"NA", ""};
+static int relult_len[2] = {0, 0};
 
 INLINE void write_file(const bool cover, const char * const buff, const char * const filename);
 
-void record_result(unsigned short edge)
+void record_result(const PATH_ID path_id, unsigned short edge)
 {
-    static int len = 0;
-    if (len > (MAX_LINE_LEN - 10))
+    if (relult_len[path_id - 1] > (MAX_LINE_LEN - 10))
         return;
-    if (len > 0)
-        len += sprintf(g_result + len, "|");
-    len += sprintf(g_result + len, "%d", edge);
+    if (relult_len[path_id - 1] > 0)
+        relult_len[path_id - 1] += sprintf(g_result[path_id - 1] + relult_len[path_id - 1], "|");
+    relult_len[path_id - 1] += sprintf(g_result[path_id - 1] + relult_len[path_id - 1], "%d", edge);
+}
+
+void clear_result()
+{
+    relult_len[0]
+ = 0;
+    relult_len[1] = 0;
+    sprintf(g_result[0], "NA");
 }
 
 void print_time(const char *head)
-{ 
-    struct timeb rawtime; 
-    struct tm * timeinfo; 
-    ftime(&rawtime); 
+{
+#ifdef _DEBUG
+    struct timeb rawtime;
+    struct tm * timeinfo;
+    ftime(&rawtime);
     timeinfo = localtime(&rawtime.time);
 
     static int ms = rawtime.millitm;
@@ -55,7 +60,8 @@ void print_time(const char *head)
         out_ms += 1000;
         out_s -= 1;
     }
-    printf("%s date/time is: %s \tused time is %lu s %d ms.\n", head, asctime(timeinfo), out_s, out_ms); 
+    printf("%s date/time is: %s \tused time is %lu s %d ms.\n", head, asctime(timeinfo), out_s, out_ms);
+#endif
 }
 
 int read_file(char ** const buff, const unsigned int spec, const char * const filename)
@@ -73,11 +79,11 @@ int read_file(char ** const buff, const unsigned int spec, const char * const fi
     while ((cnt < spec) && !feof(fp))
     {
         line[0] = 0;
-        fgets(line, MAX_LINE_LEN + 2, fp);
+        if (fgets(line, MAX_LINE_LEN + 2, fp) == NULL)  continue;
         if (line[0] == 0)   continue;
         buff[cnt] = (char *)malloc(MAX_LINE_LEN + 2);
         strncpy(buff[cnt], line, MAX_LINE_LEN + 2 - 1);
-        buff[cnt][4001] = 0;
+        buff[cnt][MAX_LINE_LEN + 1] = 0;
         cnt++;
     }
     fclose(fp);
@@ -88,10 +94,12 @@ int read_file(char ** const buff, const unsigned int spec, const char * const fi
 
 void write_result(const char * const filename)
 {
-    if (g_result[0] == '\0')
+    printf("路径1：%s\n",g_result[0]);
+    write_file(1, g_result[0], filename);
+    if (g_result[0][0] == 'N')
         return;
-
-    write_file(1, g_result, filename);
+    printf("路径2：%s\n",g_result[1]);
+    write_file(0, g_result[1], filename);
 }
 
 void release_buff(char ** const buff, const int valid_item_num)
